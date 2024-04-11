@@ -95,8 +95,11 @@ class Video(Resource):
     def hello():
         return 'Hello, this is a simple Flask app '+ str(random.randint(0, 100))
 
+    @app.route('/hello')
+    def welcome_message():
+        return '9999 ATK 9999 DEF OP AF'
+
 api.add_resource(Video, "/video/<int:video_id>")
 
 if __name__ == "__main__":
-    app.run(debug=True) 
-
+    app.run(port=5000)
