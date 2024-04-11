@@ -1,7 +1,7 @@
 from flask import Flask , request
 from flask_restful import Api, Resource , reqparse , abort, fields, marshal_with
 from flask_sqlalchemy import SQLAlchemy
-
+import random
 #Para la base datos hacemos pip install sqlalchemy
 app = Flask(__name__)
 api = Api(app)
@@ -20,14 +20,22 @@ class VideoModel(db.Model):
 # db.create_all() **importante ** no descomentar esto por que creariamos otra base de datos y se borrarian
 # todas las filas
 
+#Request Parser for video getting and putting
 video_put_args = reqparse.RequestParser()
 video_put_args.add_argument("name",type=str, help="Name of the video", required=True)
 video_put_args.add_argument("views",type=int, help="Views of the video", required=True)
 video_put_args.add_argument("likes",type=int, help="Likes of the video", required=True)
 
-resource_fields = {'id':fields.String}
+#Request Parser for video patch
+video_update_args = reqparse.RequestParser()
+video_update_args.add_argument("name",type=str, help="Name of the video")
+video_update_args.add_argument("views",type=int, help="Views of the video")
+video_update_args.add_argument("likes",type=int, help="Likes of the video")
 
-videos = {}
+resource_fields = {'id':fields.Integer,
+                   'name': fields.String,
+                   'views':fields.Integer,
+                   'likes':fields.Integer}
 
 # Utilizamos un diccionario para responder requests 
 # The information we return is serializable python dictionaries are very similar 
@@ -38,35 +46,54 @@ videos = {}
 # PUT modificar un dato
 # DELETE borrar un dato
 
-def abor_if_video_id_doesnt_exists(video_id):
-    if video_id not in videos:
-        abort(404, message="Video id is not valid...")
-
-def abort_if_video_exists(video_id):
-    if video_id in videos:
-        abort(409, message="Video already exists with that ID")
-
-
+#Metodos get put delete
 class Video(Resource):
-    def get(self, video_id):
-        result = VideoModel.query.get(id=video_id) # busca una fila que tenga el mismo video_id
-        return result
 
-    #Argument Parses
+    @marshal_with(resource_fields) #Serializara el resultado con los resource_fields
+    def get(self, video_id):
+        result = VideoModel.query.filter_by(id=video_id).first() # busca una fila que tenga el mismo video_id
+        if not result:
+            abort(404, message="Video id doesnt exist")
+        return result , 200
+
+    @marshal_with(resource_fields)
     def put(self, video_id):
-        abort_if_video_exists(video_id)
         args = video_put_args.parse_args()
-        videos[video_id] = args #Args es un dicionario entonces todo bien haciendo esto
-        return videos[video_id] , 201
+        result = VideoModel.query.filter_by(id=video_id).first()
+        if result:
+            abort(409, message="Video id taken... ")
+        video = VideoModel(id=video_id, name=args['name'],views=args['views'],likes=args['likes'])
+        db.session.add(video)
+        db.session.commit()
+        return video, 201
+
+    @marshal_with(resource_fields)
+    def patch(self, video_id):
+        args = video_put_args.parse_args()
+        video = VideoModel.query.filter_by(id=video_id).first()
+        if not video:
+            abort(404, message="Video doesnt exists... ")
+        if "name" in args:
+            video.name = args['name']
+        if "views" in args:
+            video.views = args['views']
+        if "likes" in args:
+            video.likes = args['likes']
+        db.session.add(video)
+        db.session.commit()
+        return video
 
     def delete(self, video_id):
-        abor_if_video_id_doesnt_exists(video_id)
-        del videos[video_id]
-        return '', 204
+        video_to_delete = VideoModel.query.filter_by(id=video_id).first()
+        if not video_to_delete:
+            abort(404, message="Video doesnt exists... ")
+        db.session.delete(video_to_delete)
+        db.commit()
+        return 'Deleted Succesfully', 204
 
     @app.route('/')
     def hello():
-        return 'Hello, this is a simple Flask app'
+        return 'Hello, this is a simple Flask app '+ str(random.randint(0, 100))
 
 api.add_resource(Video, "/video/<int:video_id>")
 
